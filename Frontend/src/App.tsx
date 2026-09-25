@@ -550,11 +550,26 @@ const T: Record<Language, Record<string, string>> = {
 // ==================== VOICE HOOK ====================
 function useScreenReader(lang: Language, text: string, autoPlay: boolean = false) {
   const [isSpeaking, setIsSpeaking] = useState(false);
+
+  useEffect(() => {
+    // Pre-warm voices cache in browsers where getVoices() is asynchronous
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      const load = () => { window.speechSynthesis.getVoices(); };
+      load();
+      window.speechSynthesis.onvoiceschanged = load;
+    }
+  }, []);
+
   const speak = () => {
-    const synth = window.speechSynthesis;
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : null;
     if (!synth || !text) return;
-    synth.cancel();
+    try {
+      synth.cancel();
+      if (synth.paused) synth.resume();
+    } catch {}
+
     const utterance = new SpeechSynthesisUtterance(text);
+    (window as any)._activeUtterance = utterance; // Prevent Chrome GC bug
     const { voice, targetBcp } = getBestVoiceForLang(synth, lang);
     if (voice) {
       utterance.voice = voice;
@@ -562,10 +577,21 @@ function useScreenReader(lang: Language, text: string, autoPlay: boolean = false
     utterance.lang = targetBcp || SPEECH_LANG[lang] || "en-IN";
     utterance.rate = 0.92;
     utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    synth.speak(utterance);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      (window as any)._activeUtterance = null;
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      (window as any)._activeUtterance = null;
+    };
+
+    try {
+      synth.speak(utterance);
+      if (synth.paused) synth.resume();
+    } catch {}
   };
+
   useEffect(() => {
     if (autoPlay && text) {
       const timer = setTimeout(() => speak(), 600);
@@ -573,6 +599,7 @@ function useScreenReader(lang: Language, text: string, autoPlay: boolean = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, autoPlay]);
+
   return { isSpeaking, speak };
 }
 
@@ -1917,7 +1944,30 @@ function MobileBankingPreview({ data, files }: { data: Record<string, string>; f
 // ==================== SCREENS ====================
 function WelcomeScreen({ onNext }: { onNext: () => void }) {
   const [speaking, setSpeaking] = useState(false);
-  const handleSpeakWelcome = () => { const synth = window.speechSynthesis; if (!synth) return; synth.cancel(); const u = new SpeechSynthesisUtterance("Welcome to BankSaarthi"); u.lang = "en-IN"; u.onstart = () => setSpeaking(true); u.onend = () => setSpeaking(false); synth.speak(u); };
+  const handleSpeakWelcome = () => {
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : null;
+    if (!synth) return;
+    try {
+      synth.cancel();
+      if (synth.paused) synth.resume();
+    } catch {}
+    const u = new SpeechSynthesisUtterance("Welcome to BankSaarthi");
+    (window as any)._welcomeUtterance = u;
+    u.lang = "en-IN";
+    u.onstart = () => setSpeaking(true);
+    u.onend = () => {
+      setSpeaking(false);
+      (window as any)._welcomeUtterance = null;
+    };
+    u.onerror = () => {
+      setSpeaking(false);
+      (window as any)._welcomeUtterance = null;
+    };
+    try {
+      synth.speak(u);
+      if (synth.paused) synth.resume();
+    } catch {}
+  };
   return (<div className="flex flex-col items-center justify-between min-h-screen px-8 py-14" style={{ background: "linear-gradient(150deg,#0f2d7a 0%,#1a3a8f 45%,#2563eb 100%)" }}><div /><div className="flex flex-col items-center gap-7 w-full"><Logo size={150} /><div className="text-center"><h1 className="text-white text-5xl font-extrabold tracking-tight">Bank<span style={{ color: "#f97316" }}>Saarthi</span></h1><p className="text-blue-200 text-lg mt-2 font-medium">Banking made simple for everyone</p></div><button onClick={onNext} className="mt-4 px-20 py-6 text-3xl font-extrabold rounded-2xl shadow-2xl active:scale-95 transition-all text-white" style={{ background: "#f97316", letterSpacing: "0.08em" }}>START</button><button onClick={handleSpeakWelcome} className={`flex items-center gap-2 text-white border border-white/25 rounded-xl px-5 py-3 text-lg font-medium ${speaking ? 'bg-orange-500' : 'bg-white/15'}`}>{speaking ? "🔊 Speaking…" : "🔊 Speak"}</button></div></div>);
 }
 
@@ -2119,7 +2169,12 @@ async function captureVoiceInput({
 
   try {
     if (!navigator.mediaDevices?.getUserMedia) {
-      finishWithError("Microphone is not supported in this browser.");
+      const isHttp = typeof window !== "undefined" && window.location.protocol === "http:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+      if (isHttp) {
+        finishWithError(`Microphone is blocked by browser on insecure HTTP (${window.location.hostname}). Please open via HTTPS or localhost.`);
+      } else {
+        finishWithError("Microphone is not supported or was blocked by this browser.");
+      }
       return { stop: () => {} };
     }
 
@@ -2137,6 +2192,10 @@ async function captureVoiceInput({
       ? "audio/webm;codecs=opus"
       : MediaRecorder.isTypeSupported("audio/webm")
       ? "audio/webm"
+      : MediaRecorder.isTypeSupported("audio/mp4")
+      ? "audio/mp4"
+      : MediaRecorder.isTypeSupported("audio/ogg")
+      ? "audio/ogg"
       : "";
     const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     activeRecorder = recorder;
@@ -2234,9 +2293,11 @@ async function captureVoiceInput({
     return { stop };
   } catch (err: any) {
     if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
-      finishWithError("Microphone permission denied. Please allow microphone in browser.");
+      finishWithError("Microphone permission blocked. Please click the lock 🔒 icon in the address bar and allow Microphone.");
+    } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
+      finishWithError("No microphone detected on this laptop. Please connect a microphone or use typing.");
     } else {
-      finishWithError("Could not access microphone: " + (err?.message || "check settings."));
+      finishWithError("Could not access microphone: " + (err?.message || "Please check browser settings."));
     }
     return { stop: () => {} };
   }

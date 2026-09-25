@@ -48,9 +48,14 @@ export function getBestVoiceForLang(
   v = voices.find((voice) => voice.lang.toLowerCase().startsWith(prefix));
   if (v) return { voice: v, targetBcp: v.lang };
 
-  // 4. Indian English or first voice
-  v = voices.find((voice) => voice.lang.toLowerCase().includes("in")) || voices[0] || null;
-  return { voice: v, targetBcp: v ? v.lang : primaryBcp };
+  // 4. If target language voice not found, do NOT force an English voice on Indic text!
+  // Leave voice as null so the browser's native engine resolves it by utterance.lang.
+  if (lang === "en" || lang === "mz") {
+    v = voices.find((voice) => voice.lang.toLowerCase().includes("in")) || voices[0] || null;
+    return { voice: v, targetBcp: v ? v.lang : primaryBcp };
+  }
+
+  return { voice: null, targetBcp: primaryBcp };
 }
 
 // ==================== CLIENT-SIDE BANKING NORMALIZER ====================
