@@ -11,6 +11,6 @@ pydantic-settings
 pillow
 opencv-python
 pytesseract
-openai-whisper
+faster-whisper
 reportlab
 qrcode[pil]

@@ -620,14 +620,14 @@ def get_whisper_model():
 
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         try:
-            import whisper
+            from faster_whisper import WhisperModel
         except ImportError:
             venv_site = os.path.join(base_dir, "venv", "Lib", "site-packages")
             if os.path.exists(venv_site) and venv_site not in sys.path:
                 sys.path.insert(0, venv_site)
-            import whisper
+            from faster_whisper import WhisperModel
 
-        _model = whisper.load_model("base")
+        _model = WhisperModel("tiny", device="cpu", compute_type="int8")
     return _model
 
 
@@ -713,14 +713,14 @@ def transcribe_audio(audio_path: str, language: Optional[str] = None) -> Dict[st
         if whisper_lang in ("auto", "none", "unknown"):
             whisper_lang = None
 
-    transcribe_kwargs: Dict[str, Any] = {"fp16": False}
+    transcribe_kwargs: Dict[str, Any] = {}
     if whisper_lang:
         transcribe_kwargs["language"] = whisper_lang
 
     # 1. Main transcription in requested or detected language
-    result = model.transcribe(audio_path, **transcribe_kwargs)
-    detected_lang = result.get("language", whisper_lang or clean_lang or "unknown")
-    raw_text = result.get("text", "").strip()
+    segments, info = model.transcribe(audio_path, **transcribe_kwargs)
+    raw_text = " ".join([segment.text for segment in segments]).strip()
+    detected_lang = getattr(info, "language", whisper_lang or clean_lang or "unknown")
 
     # Convert any Indic numerals inside the transcript to ASCII digits
     text = convert_indic_numerals(raw_text)
@@ -736,8 +736,8 @@ def transcribe_audio(audio_path: str, language: Optional[str] = None) -> Dict[st
             english_text = normalized
         else:
             try:
-                trans_result = model.transcribe(audio_path, task="translate", fp16=False)
-                english_text = trans_result.get("text", "").strip()
+                trans_segments, _ = model.transcribe(audio_path, task="translate")
+                english_text = " ".join([segment.text for segment in trans_segments]).strip()
             except Exception:
                 pass
 
