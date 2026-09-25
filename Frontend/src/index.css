@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+:root {
+  --bs-blue: #1a3a8f;
+  --bs-blue-light: #2563eb;
+  --bs-orange: #f97316;
+  --bs-orange-dark: #ea580c;
+  --bs-bg: #f0f4ff;
+  --bs-card: #ffffff;
+  --bs-text: #0f172a;
+  --bs-muted: #64748b;
+  --bs-success: #16a34a;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+  background: var(--bs-bg);
+  color: var(--bs-text);
+}
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ===== Print handling ===== */
+/* Normal screen pe hidden, sirf print preview me dikhega */
+@media screen {
+  .print-only { display: none; }
+}
+
+@media print {
+  body * { visibility: hidden; }
+  .print-only, .print-only * { visibility: visible; }
+  .print-only {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .no-print { display: none !important; }
+  @page { size: A4; margin: 8mm; }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #form-print-area, #form-print-area * {
+    visibility: visible;
+  }
+  #form-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

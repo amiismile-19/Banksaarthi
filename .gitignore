@@ -1,0 +1,37 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python cache & bytecode
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Node modules & builds
+node_modules/
+**/node_modules/
+dist/
+Frontend/dist/
+.vite/
+
+# Application uploads & generated documents
+generated_pdfs/
+uploads/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs & OS artifacts
+*.log
+.DS_Store
+Thumbs.db

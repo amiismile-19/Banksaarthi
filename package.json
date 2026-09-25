@@ -1,0 +1,12 @@
+{
+  "name": "banksaarthi-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BankSaarthi - Multilingual AI Banking Platform",
+  "scripts": {
+    "dev": "npm --prefix Frontend run dev",
+    "build": "npm --prefix Frontend run build",
+    "preview": "npm --prefix Frontend run preview",
+    "start": "npm --prefix Frontend run dev"
+  }
+}
